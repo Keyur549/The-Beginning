@@ -176,6 +176,12 @@ input:focus,select:focus{outline:none;border-color:var(--pl);box-shadow:0 0 0 3p
 #pj .pjin:has(.pjbar),#pj .pjin:has(.pjbar:not(.side)){padding-bottom:24px!important;padding-left:0!important;padding-right:0!important}
 body.bkdraw #pj .pjbar,body.wvhide #pj .pjbar{display:none!important}
 #pj .pjin.pjin:has(.pjw){padding-left:0!important;padding-right:0!important;padding-bottom:24px!important}
+/* v7: side control bar never covers the lobby QR */
+#pj .pjin:has(.pjbar):has(.pjrow){box-sizing:border-box;width:100%!important;max-width:none!important;padding-left:calc(min(215px,19vw) + max(10px,env(safe-area-inset-left,0px)) + 24px)!important;padding-right:24px!important}
+#pj .pjin:has(.pjbar) .pjrow{flex-wrap:nowrap;gap:clamp(14px,3vw,40px)}
+#pj .pjin:has(.pjbar) .pjrow .pjqr{width:min(27vw,40vh,340px);height:min(27vw,40vh,340px);flex:none}
+#pj .pjin:has(.pjbar) .pjrow .pjbig{font-size:clamp(2.2rem,9vh,5rem)}
+@media (max-width:760px){#pj .pjin:has(.pjbar):has(.pjrow){padding-left:24px!important;padding-bottom:52vh!important}#pj .pjbar{top:auto!important;bottom:0;left:0!important;right:0;transform:none!important;width:auto!important;flex-direction:row!important;flex-wrap:wrap!important;border-radius:16px 16px 0 0;max-height:48vh}#pj .pjin:has(.pjbar) .pjrow{flex-wrap:wrap}}
 </style>
 </head>
 <body>
