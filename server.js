@@ -56,12 +56,17 @@ function loadConfig(){
   return o;
 }
 const CFG = loadConfig();
-function publicCfg(){ return { rounds:CFG.rounds, perRound:CFG.perRound, roundNames:CFG.roundNames, correctPts:CFG.correctPts, wrongPts:CFG.wrongPts, lastMult:CFG.lastRoundMult, boxSec:CFG.boxSec }; }
+// per-room overrides (Host can edit Round names / Mystery Box points at Create Room or live from Host Tools)
+function RC(room){ const o=(room&&room.cfgOvr)||{}; return Object.assign({}, CFG, o); }
+function publicCfg(room){ const c=RC(room); return { rounds:CFG.rounds, perRound:CFG.perRound, roundNames:c.roundNames, correctPts:c.correctPts, wrongPts:c.wrongPts, lastMult:c.lastRoundMult, boxSec:c.boxSec, introSec:INTRO_SEC }; }
+const INTRO_SEC = 7.5;
+function cleanNames(a){ return Array.from({length:CFG.rounds},(_,i)=>{ const v=(Array.isArray(a)&&a[i]!=null)?String(a[i]).trim().slice(0,40):''; return v||CFG.roundNames[i]; }); }
+function cleanPool(a){ if(!Array.isArray(a)||a.length!==CFG.boxPool.length) return null; const o=a.map(x=>Math.round(+x)); if(o.some(x=>!isFinite(x)||x<-50||x>50)) return null; return o; }
 function defaultQuestionsText(){
   try { return fs.readFileSync(path.join(__dirname,'questions.txt'),'utf8'); } catch(e){ return ''; }
 }
 app.get('/api/default-questions', (req,res)=>{ res.type('text/plain; charset=utf-8').send(defaultQuestionsText()); });
-app.get('/api/config', (req,res)=>res.json(publicCfg()));
+app.get('/api/config', (req,res)=>res.json(Object.assign(publicCfg(null),{boxPool:CFG.boxPool})));
 
 const LINES = (() => {
   const L = [];
@@ -123,7 +128,7 @@ function makeCard(questions){
   }
   return shuffle(out);
 }
-function makeBoxVals(){ return Array.from({length:CFG.rounds}, ()=>shuffle(CFG.boxPool)); }
+function makeBoxVals(r){ return Array.from({length:CFG.rounds}, ()=>shuffle(RC(r).boxPool)); }
 function randCode(){ const c='ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; let s='GYAN'; for(let i=0;i<4;i++) s+=c[Math.floor(Math.random()*c.length)]; return s; }
 
 const rooms = {}; // code -> room object
@@ -157,7 +162,7 @@ function roundBreakdown(room, p){
   rd.forEach((o,ri)=>{
     const pick = (p.boxPick||[])[ri];
     const v = (pick!=null && p.boxVals && p.boxVals[ri]) ? p.boxVals[ri][pick] : 0;
-    o.box = v * (ri===n-1 ? CFG.lastRoundMult : 1);
+    o.box = v * (ri===n-1 ? RC(room).lastRoundMult : 1);
     o.score = o.correct*CFG.correctPts - o.wrong*CFG.wrongPts + o.box;
   });
   return rd;
@@ -204,15 +209,15 @@ function pubPlayer(room,p){
   const claims = {};
   for (const [k,c] of Object.entries(p.claims||{})) claims[k] = {ts:(c.shownTs||c.ts), marks:c.marks};
   const pp = {...p, claims, boxVals: undefined};   // only the box a player has PICKED is revealed to him (boxRes); other boxes stay secret
-  pp.boxRes = (p.boxPick||[]).map((pk,i)=> pk==null?null:(p.boxVals[i][pk]*(i===CFG.rounds-1?CFG.lastRoundMult:1)));
+  pp.boxRes = (p.boxPick||[]).map((pk,i)=> pk==null?null:(p.boxVals[i][pk]*(i===CFG.rounds-1?RC(room).lastRoundMult:1)));
   return pp;
 }
 function publicRoom(room){
   // Until results are revealed, never send correct answers or claim validity to browsers.
-  if (room.status==='revealed') return {...room, cert:undefined, cfg:publicCfg()};
+  if (room.status==='revealed') return {...room, cert:undefined, cfg:{...publicCfg(room), boxPool:RC(room).boxPool}};
   const players = {};
   for (const [n,p] of Object.entries(room.players)) players[n] = pubPlayer(room,p);
-  return {...room, cert:undefined, cfg:publicCfg(), questions: room.questions.map(q=>({q:q.q, img:q.img, aud:q.aud})), players};
+  return {...room, cert:undefined, cfg:{...publicCfg(room), boxPool:RC(room).boxPool}, questions: room.questions.map(q=>({q:q.q, img:q.img, aud:q.aud})), players};
 }
 // ---- 500-player friendly state: a PLAYER only receives his own data (+ the few winners after the reveal).
 // The HOST receives the full room, but at most about once per second.
@@ -227,14 +232,14 @@ function zoneStatsS(room){
 }
 function zoneProgOf(room){ const m={}, q=room.curIdx, live=(room.status==='question'||room.status==='locked'); for(const p of Object.values(room.players||{})){ const z=String((p&&p.zone)||'').trim(); if(!z) continue; const k=z.toLowerCase(); const o=m[k]||(m[k]={z,i:Object.keys(m).length,n:0,a:0,l:0}); o.n++; if(live&&q!=null&&Object.values(p.marks||{}).includes(q)) o.a++; } if(room.zlock) for(const k in m){ const zl=room.zlock[k]; if(zl&&zl.locks) m[k].l=zl.locks.reduce((s,x)=>s+(x?1:0),0); } return Object.values(m).slice(0,40); }
 function slimBase(room){
-  const { clientMap, tokens, cert, players, ...rest } = room;
+  const { clientMap, tokens, cert, players, cfgOvr, ...rest } = room;
   const n = Object.keys(players).length;
   if (room.status==='revealed'){
     const keep = {};
     for (const [k,v] of Object.entries(room.winners||{})) if (k!=='zone' && typeof v==='string' && players[v]) keep[v]=players[v];
-    return {base:{...rest, cfg:publicCfg(), nPlayers:n, zoneS:zoneStatsS(room)}, keep};
+    return {base:{...rest, cfg:publicCfg(room), nPlayers:n, zoneS:zoneStatsS(room)}, keep};
   }
-  return {base:{...rest, cfg:publicCfg(), nPlayers:n, questions: room.questions.map(q=>({q:q.q, img:q.img, aud:q.aud})), zoneProg: zoneProgOf(room)}, keep:{}};
+  return {base:{...rest, cfg:publicCfg(room), nPlayers:n, questions: room.questions.map(q=>({q:q.q, img:q.img, aud:q.aud})), zoneProg: zoneProgOf(room)}, keep:{}};
 }
 function zoneListOf(room){ const seen=[],m={}; for(const p of Object.values(room.players||{})){ const k=String((p&&p.zone)||'').trim().toLowerCase(); if(k&&!(k in m)){ m[k]=seen.length; seen.push(k);} } return m; }
 function slimFor(room, S, name){
@@ -278,7 +283,7 @@ function seen(code,key){ if (key) SEEN[code+'|'+key]=Date.now(); }
 const ONLINE_MS = +process.env.ONLINE_MS || 10000;
 function bindSock(socket, r, code, name){ socket.data = {code, name}; seen(code,name); }
 
-function newPlayerObj(r,name,zone,avatar){ return { card: makeCard(r.questions), boxVals: makeBoxVals(), boxPick: Array(CFG.rounds).fill(null), baseName: name, zone, avatar: avatar||'🦁', marks:{}, claims:{}, joinedAt: Date.now() }; }
+function newPlayerObj(r,name,zone,avatar){ return { card: makeCard(r.questions), boxVals: makeBoxVals(r), boxPick: Array(CFG.rounds).fill(null), baseName: name, zone, avatar: avatar||'🦁', marks:{}, claims:{}, joinedAt: Date.now() }; }
 function newToken(){ return 't'+Date.now().toString(36)+Math.random().toString(36).slice(2,10)+Math.random().toString(36).slice(2,10); }
 function tokFor(r,key){ if(!r.tokens) r.tokens={}; if(!r.tokens[key]) r.tokens[key]=newToken(); return r.tokens[key]; }
 function tokOwner(r,token){ if(!token||!r.tokens) return null; return Object.keys(r.tokens).find(k=>r.tokens[k]===token && r.players[k]) || null; }
@@ -293,7 +298,7 @@ function bindName(socket, r, code, clientId, key, token){
 function autoPickBoxes(r, round){
   for (const p of Object.values(r.players)){
     if (!p.boxPick) p.boxPick = Array(CFG.rounds).fill(null);
-    if (p.boxPick[round]==null) p.boxPick[round] = Math.floor(Math.random()*CFG.boxPool.length);
+    if (p.boxPick[round]==null) p.boxPick[round] = Math.floor(Math.random()*RC(r).boxPool.length);
   }
 }
 setInterval(() => {
@@ -449,7 +454,7 @@ io.on('connection', (socket) => {
     cb && cb({ok: id===HOST_ID && pw===HOST_PW});
   });
 
-  socket.on('host:create', ({hostName, maxPlayers, qaText}, cb) => {
+  socket.on('host:create', ({hostName, maxPlayers, qaText, roundNames, boxPool, lastMult}, cb) => {
     const code = randCode();
     const useDefault = !(qaText||'').trim();
     const parsed = parseRounds(useDefault ? defaultQuestionsText() : qaText);
@@ -458,20 +463,35 @@ io.on('connection', (socket) => {
       code, hostName, maxPlayers: maxPlayers||null, status:'lobby',
       questions: parsed.questions, usedIdx:[], curIdx:null, timerEnd:null,
       round:0, roundsDone:0, boxEnd:null, boxAuto:false,
-      players:{}, winners:null, revealStep:0, createdAt: Date.now()
+      players:{}, winners:null, revealStep:0, createdAt: Date.now(),
+      cfgOvr:{ roundNames: cleanNames(roundNames), boxPool: cleanPool(boxPool)||CFG.boxPool.slice(), lastRoundMult: (+lastMult>=1&&+lastMult<=5)?Math.round(+lastMult):CFG.lastRoundMult }
     };
     socket.join(code);
     cb && cb({ok:true, code, parseInfo:{count:parsed.questions.length, usedDefault:useDefault}});
     broadcast(code);
   });
 
-  socket.on('host:start', ({code}) => { const r=rooms[code]; if(!r) return; r.joinEnd=null; if(!r.botsPlay) for(const k of Object.keys(r.players)) if(r.players[k].bot) delete r.players[k]; r.status='active'; if(!r.startedAt) r.startedAt=Date.now(); broadcast(code); });
+  socket.on('host:start', ({code}) => { const r=rooms[code]; if(!r) return; r.joinEnd=null; if(!r.botsPlay) for(const k of Object.keys(r.players)) if(r.players[k].bot) delete r.players[k]; r.status='active'; if(!r.startedAt) r.startedAt=Date.now(); startRoundIntro(r,code,0); });
 
+  function startRoundIntro(r,code,round){ r.introFor=round; r.introAt=Date.now(); r.introEnd=Date.now()+(INTRO_SEC+0.6)*1000; broadcast(code); }
+  socket.on('host:introDone', ({code}) => { const r=rooms[code]; if(!r||!r.introEnd) return; r.introEnd=0; broadcast(code); });
+  // Host: edit Round names / Mystery Box points (also while the game is running)
+  socket.on('host:setRoundCfg', ({code, roundNames, boxPool, lastMult}, cb) => {
+    const r=hostRoom(code); if(!r){ cb&&cb({ok:false}); return; }
+    const o=r.cfgOvr||(r.cfgOvr={}); if(roundNames) o.roundNames=cleanNames(roundNames);
+    if(lastMult!=null && +lastMult>=1 && +lastMult<=5) o.lastRoundMult=Math.round(+lastMult);
+    if(boxPool){ const bp=cleanPool(boxPool); if(!bp){ cb&&cb({ok:false,error:'Box points 7 hovaa joie (-50 thi 50)'}); return; } o.boxPool=bp;
+      // re-deal values for every round whose boxes nobody has opened yet
+      const from = (r.status==='box') ? r.round+1 : r.round;
+      for(const p of Object.values(r.players)){ if(!p.boxVals) p.boxVals=makeBoxVals(r); for(let rd=from;rd<CFG.rounds;rd++){ if(p.boxPick && p.boxPick[rd]!=null) continue; p.boxVals[rd]=shuffle(bp); } } }
+    broadcast(code); cb&&cb({ok:true});
+  });
   const REVEAL_MS=1600;       // how long the big number popup stays up before the question appears
   const SPIN_SAFETY_MS=6000;  // safety net only — if host's browser never confirms, auto-advance so the game can't get stuck
   socket.on('host:spin', ({code}) => {
     const r = rooms[code]; if(!r) return;
     if(r.status!=='active' && r.status!=='locked') return; // ignore duplicate/racing spin clicks — fixes skipped questions
+    if(r.introEnd && Date.now()<r.introEnd) return; // Round Intro is playing
     const avail=[]; for(let i=r.round*CFG.perRound;i<(r.round+1)*CFG.perRound;i++) if(!r.usedIdx.includes(i)) avail.push(i);
     if (avail.length===0) return; // this round is finished: Host starts the Mystery Box instead
     const idx = avail[Math.floor(Math.random()*avail.length)];
@@ -511,7 +531,7 @@ io.on('connection', (socket) => {
     const r = rooms[code]; if(!r || r.status!=='locked') return;
     const done = r.usedIdx.filter(i=>Math.floor(i/CFG.perRound)===r.round).length;
     if (done < CFG.perRound) return;
-    r.status='box'; r.roundsDone = r.round+1; r.boxEnd = Date.now()+CFG.boxSec*1000; r.boxAuto=false;
+    r.status='box'; r.roundsDone = r.round+1; r.boxEnd = Date.now()+RC(r).boxSec*1000; r.boxAuto=false;
     broadcast(code);
   });
   // Host: next round (new wheel) — after the LAST round it opens the "Box Opening" screen instead
@@ -519,7 +539,7 @@ io.on('connection', (socket) => {
     const r = rooms[code]; if(!r || r.status!=='box') return;
     autoPickBoxes(r, r.round); r.boxAuto = true;
     if (r.round >= CFG.rounds-1){ r.status='opening'; r.boxEnd=null; }
-    else { r.round++; r.status='active'; r.curIdx=null; r.timerEnd=null; r.boxEnd=null; r.boxAuto=false; }
+    else { r.round++; r.status='active'; r.curIdx=null; r.timerEnd=null; r.boxEnd=null; r.boxAuto=false; startRoundIntro(r,code,r.round); return; }
     broadcast(code);
   });
   socket.on('player:boxPick', ({code,name,idx}) => {

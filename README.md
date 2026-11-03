@@ -1,3 +1,11 @@
+## 🆕 Beginning: Smooth Wheel, Round Intro, Colourful Mystery Box
+- 🎡 Wheel navo premium colourful, ekdum smooth fare (4.4 sec, dhime dhime ubhi jay); page refresh thay to pan atkto nathi
+- 🎬 Darek Round shuru thata pehla **Round Intro** (projector + badha players ni phone ma): Round number + Round nu naam
+- ✏️ Round na naam badalo: Create Room ma "Round na naam & Box Points" ma, athva game dara-miyan Host ma niche-dabi **🎡 Round & 🎁 Box Edit** button. Naam badlo to Intro ma pan e j naam aave
+- 🎁 Mystery Box colourful (7 alag rang), projector par pan; **Box na 7 points edit** kari shako (−50 thi 50) ane chhella round no gunak. Je Round na Box haji khulya nathi temaj lagu thay
+- 🎨 Badhe premium fonts (Shrikhand, Hind Vadodara) ane colourful theme
+Upload only: server.js, host.html, player.html
+
 ## 🆕 Epilogue: Kalash fix
 - Spin dabavta jhuno water drop jatu rahe chhe, nava drop ma navo number aave chhe
 Upload only: server.js, host.html, player.html
