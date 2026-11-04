@@ -44,7 +44,7 @@ const CFG_DEF = {
   boxPool: [0,1,2,3,3,4,5],   // 7 Mystery Boxes per round (shuffled for every player)
   lastRoundMult: 2,          // Box points of the LAST round are multiplied by this
   boxSec: 10,                // seconds to pick a Box
-  cardCounts: [4,4,4,4,3,3,3] // answers on each player's card from Round 1..7 (sum must be 25)
+  cardCounts: [3,3,3,4,4,4,4] // answers on each player's card from Round 1..7 (sum must be 25)
 };
 function loadConfig(){
   let c = {};
@@ -58,7 +58,8 @@ function loadConfig(){
 const CFG = loadConfig();
 // per-room overrides (Host can edit Round names / Mystery Box points at Create Room or live from Host Tools)
 function RC(room){ const o=(room&&room.cfgOvr)||{}; return Object.assign({}, CFG, o); }
-function publicCfg(room){ const c=RC(room); return { rounds:CFG.rounds, perRound:CFG.perRound, roundNames:c.roundNames, correctPts:c.correctPts, wrongPts:c.wrongPts, lastMult:c.lastRoundMult, boxSec:c.boxSec, introSec:INTRO_SEC }; }
+function cleanTheme(t){ if(!t||typeof t!=='object') return null; const hx=v=>{ v=String(v||'').trim(); if(/^#[0-9a-fA-F]{6}$/.test(v)) return v.toLowerCase(); const m=v.match(/^(?:rgb\()?\s*(\d{1,3})\s*[, ]\s*(\d{1,3})\s*[, ]\s*(\d{1,3})\s*\)?$/i); if(m&&+m[1]<256&&+m[2]<256&&+m[3]<256) return '#'+[m[1],m[2],m[3]].map(x=>(+x).toString(16).padStart(2,'0')).join(''); return null; }; const p=hx(t.p), s=hx(t.s), bg=hx(t.bg); if(!p||!s||!bg) return null; const o={p,s,bg,id:String(t.id||'custom').replace(/[^a-z0-9_-]/gi,'').slice(0,20)||'custom'}; if(t.rainbow||o.id==='fun') o.rainbow=true; return o; }
+function publicCfg(room){ const c=RC(room); return { theme:cleanTheme(c.theme), rounds:CFG.rounds, perRound:CFG.perRound, roundNames:c.roundNames, correctPts:c.correctPts, wrongPts:c.wrongPts, lastMult:c.lastRoundMult, boxSec:c.boxSec, introSec:INTRO_SEC }; }
 const INTRO_SEC = 7.5;
 function cleanNames(a){ return Array.from({length:CFG.rounds},(_,i)=>{ const v=(Array.isArray(a)&&a[i]!=null)?String(a[i]).trim().slice(0,40):''; return v||CFG.roundNames[i]; }); }
 function cleanPool(a){ if(!Array.isArray(a)||a.length!==CFG.boxPool.length) return null; const o=a.map(x=>Math.round(+x)); if(o.some(x=>!isFinite(x)||x<-50||x>50)) return null; return o; }
@@ -385,6 +386,7 @@ io.on('connection', (socket) => {
     const t=(x,n)=>String(x==null?'':x).slice(0,n);
     const c={title:t(cert.title,60),sub:t(cert.sub,60),msg:t(cert.msg,120),event:t(cert.event,100),org:t(cert.org,60),signer:t(cert.signer,60),color:/^#[0-9a-f]{6}$/i.test(cert.color||'')?cert.color:''};
     if(typeof cert.logo==='string' && /^data:image\/(png|jpeg|webp);base64,/.test(cert.logo) && cert.logo.length<=450000) c.logo=cert.logo;
+    if(typeof cert.signImg==='string' && /^data:image\/(png|jpeg|webp);base64,/.test(cert.signImg) && cert.signImg.length<=250000) c.signImg=cert.signImg;
     r.cert=c; scheduleBackup(code); cb&&cb({ok:true});
   });
   socket.on('cert:get', ({code}, cb) => { const r=rooms[code]; cb&&cb({ok:!!r, cert:(r&&r.cert)||null, revealed:!!r&&r.status==='revealed'}); });
@@ -454,7 +456,7 @@ io.on('connection', (socket) => {
     cb && cb({ok: id===HOST_ID && pw===HOST_PW});
   });
 
-  socket.on('host:create', ({hostName, maxPlayers, qaText, roundNames, boxPool, lastMult}, cb) => {
+  socket.on('host:create', ({hostName, maxPlayers, qaText, roundNames, boxPool, lastMult, theme}, cb) => {
     const code = randCode();
     const useDefault = !(qaText||'').trim();
     const parsed = parseRounds(useDefault ? defaultQuestionsText() : qaText);
@@ -464,7 +466,7 @@ io.on('connection', (socket) => {
       questions: parsed.questions, usedIdx:[], curIdx:null, timerEnd:null,
       round:0, roundsDone:0, boxEnd:null, boxAuto:false,
       players:{}, winners:null, revealStep:0, createdAt: Date.now(),
-      cfgOvr:{ roundNames: cleanNames(roundNames), boxPool: cleanPool(boxPool)||CFG.boxPool.slice(), lastRoundMult: (+lastMult>=1&&+lastMult<=5)?Math.round(+lastMult):CFG.lastRoundMult }
+      cfgOvr:{ theme: cleanTheme(theme)||cleanTheme(CFG.theme)||undefined, roundNames: cleanNames(roundNames), boxPool: cleanPool(boxPool)||CFG.boxPool.slice(), lastRoundMult: (+lastMult>=1&&+lastMult<=5)?Math.round(+lastMult):CFG.lastRoundMult }
     };
     socket.join(code);
     cb && cb({ok:true, code, parseInfo:{count:parsed.questions.length, usedDefault:useDefault}});
@@ -474,6 +476,10 @@ io.on('connection', (socket) => {
   socket.on('host:start', ({code}) => { const r=rooms[code]; if(!r) return; r.joinEnd=null; if(!r.botsPlay) for(const k of Object.keys(r.players)) if(r.players[k].bot) delete r.players[k]; r.status='active'; if(!r.startedAt) r.startedAt=Date.now(); startRoundIntro(r,code,0); });
 
   function startRoundIntro(r,code,round){ r.introFor=round; r.introAt=Date.now(); r.introEnd=Date.now()+(INTRO_SEC+0.6)*1000; broadcast(code); }
+  socket.on('host:setTheme', ({code, theme}, cb) => {
+    const r=hostRoom(code); const t=cleanTheme(theme); if(!r||!t){ cb&&cb({ok:false}); return; }
+    (r.cfgOvr||(r.cfgOvr={})).theme=t; broadcast(code); cb&&cb({ok:true});
+  });
   socket.on('host:introDone', ({code}) => { const r=rooms[code]; if(!r||!r.introEnd) return; r.introEnd=0; broadcast(code); });
   // Host: edit Round names / Mystery Box points (also while the game is running)
   socket.on('host:setRoundCfg', ({code, roundNames, boxPool, lastMult}, cb) => {
@@ -487,7 +493,7 @@ io.on('connection', (socket) => {
     broadcast(code); cb&&cb({ok:true});
   });
   const REVEAL_MS=1600;       // how long the big number popup stays up before the question appears
-  const SPIN_SAFETY_MS=6000;  // safety net only — if host's browser never confirms, auto-advance so the game can't get stuck
+  const SPIN_SAFETY_MS=7500;  // safety net only — if host's browser never confirms, auto-advance so the game can't get stuck
   socket.on('host:spin', ({code}) => {
     const r = rooms[code]; if(!r) return;
     if(r.status!=='active' && r.status!=='locked') return; // ignore duplicate/racing spin clicks — fixes skipped questions

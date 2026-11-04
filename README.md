@@ -1,3 +1,43 @@
+# 🆕 Update 5
+- Wheel: Spin chalu thay tyare j previous number dhire dhire patlo thai ne gayab thay (rotate ma khabar na pade), baki segments smooth rite jagya le che.
+
+# 🆕 Update 4
+- Wheel: Spin dabavta previous question no number wheel ma thi fade thai ne jato rahe, wheel upright (middle) ma aavi ne pachhi spin thay. Projector par pan.
+- Projector par "⏱ સમય 15 sec" spasht dekhay + control bar ma selected time highlight.
+- Certificate: Host Signature (photo upload athva Mouse/aangli thi sahi), naam ane designation edit; colourful premium design (rainbow frame, gold seal, gradient title, logo watermark).
+
+# 🆕 Update 3
+- Projector par Logo/Name nathi. Zone Winner ma Zone naam + sarerash Score + kul + Players ek j screen ma. Score winners ma Score + Sacha/Khota.
+- Projector no colour: Host Lobby > 🎨 Game ના Colours > "📺 Projector Screen નો Colour" (Background + Glow, RGB code pan). "↺ Theme jevo" thi reset.
+- Certificate ma default Logo (logo.png) aave; Certificate editor ma potano logo upload karo to e vaparay.
+
+# 🆕 Latest updates
+- Projector: winner screen ma naam + Score + Claim time badhu ek j screen ma (scroll nahi). Projector par game nu Logo. Wheel spin smooth (host jevu).
+- Player: Join dabavta j pehla Logo Splash, pachhi j card. Line bane tyare banner + alert + Claim button chamke (sachi/khoti last ma). L1/L2 tag clear.
+- Card: Round 1-3 ma 3-3 answer, Round 4-7 ma 4-4 answer (config.json `cardCounts`).
+- Colours: Host Lobby ma RGB code (#RRGGBB athva 31,58,122) lakhi ne pan colour set thay.
+- Naam: જ્ઞાન શોધ · THE BEGINNING (report card, share card, certificate badhe).
+
+# 🆕 Logo Splash + Colour Theme (latest)
+- **logo.png** = જ્ઞાન શોધ · THE BEGINNING logo. Player jyare Join kare tyare pehla cinematic logo splash + music (~7 sec, tap karine skip) aave, pachhi card.
+  Logo badalvo hoy to same naam (logo.png) thi file replace karo.
+- **Colours badalva (vare vare):** Host Lobby ma "🎨 Game ના Colours બદલો" — 6 ready Theme (Fun Premium, Royal Navy & Gold, Emerald, Sunset, Royal Purple, Ocean) athva Main/Accent/Background potana colours. Wheel, Mystery Box, Round Intro, Card, Confetti badhu badlay ane Players ne pan turant dekhay. Last pasand yaad rahe che.
+- **Default colour** config.json ma `"theme": {"id":"navy","p":"#1F3A7A","s":"#D4A437","bg":"#F6EEDA"}` lakhi ne pan set kari shakay.
+
+## 🆕 Beginning: Palette + Fixes
+- 🎨 Fun Premium theme: Violet + Orange + multicolour (Wheel ma 7 rang, Mystery Box 7 rang, rainbow stripe)
+- 🧪 Practice ma 5 prashno + 1 Line Claim button
+- 🏆 Winner card ma lakir nathi, halki chamak (faded sheen); projector par winner naam motu ane vachche
+Upload only: server.js, host.html, player.html
+
+## 🆕 Beginning: Fixes
+- 🧪 Practice ma have 3 prashno (2 khana ⭐ Free)
+- 🏆 Winner Reveal ma pehla na winners ni naam-list faded rite niche dekhaay chhe
+- 🎡 "Round & Box Edit" button projector parthi kadhyu; Host Lobby ma "Round nam & Mystery Box Points" card ma edit
+- 📺 Projector ma control bar ane QR/Box overlap nathi thatu
+- 🔤 Heading sidha (Rasa) premium font; navo Gold-Emerald-Saffron colour theme
+Upload only: server.js, host.html, player.html
+
 ## 🆕 Beginning: Smooth Wheel, Round Intro, Colourful Mystery Box
 - 🎡 Wheel navo premium colourful, ekdum smooth fare (4.4 sec, dhime dhime ubhi jay); page refresh thay to pan atkto nathi
 - 🎬 Darek Round shuru thata pehla **Round Intro** (projector + badha players ni phone ma): Round number + Round nu naam
