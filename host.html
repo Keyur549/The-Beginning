@@ -2981,5 +2981,19 @@ function RBADGE(r,sm,suf){ var i=(r&&r.round)||0,nm=r&&r.cfg&&r.cfg.roundNames&&
 .pjrb.sm .pjrb-k{font-size:clamp(.8rem,2.3vh,1.3rem);letter-spacing:.35em}.pjrb.sm .pjrb-k i{display:none}
 .pjrb.sm .pjrb-n{font-size:clamp(1.3rem,4.6vh,2.8rem);line-height:1.3}
 </style>
+<script id="up-clock">
+/* Server-clock sync: every phone/laptop uses the SAME clock (server time), so timers & number reveal match exactly */
+(function(){
+  var RAW=Date.now.bind(Date),SK=0,best=1e9,n=0;
+  Date.now=function(){ return RAW()+SK; };
+  window.__srvSkew=function(){ return SK; };
+  function sample(){ try{ var t0=RAW(); socket.emit('time:sync',null,function(st){ if(typeof st!=='number') return; var t1=RAW(),rtt=t1-t0,off=st+rtt/2-t1;
+      if(n<6||rtt<=best*1.5+30){ if(rtt<best) best=rtt; SK=(n<3)?off:Math.round(SK*.5+off*.5); n++; } }); }catch(e){} }
+  function burst(){ best=1e9; n=0; for(var i=0;i<6;i++) setTimeout(sample,i*250); }
+  try{ socket.on('connect',burst); if(socket.connected) burst(); }catch(e){}
+  setInterval(sample,20000);
+  document.addEventListener('visibilitychange',function(){ if(!document.hidden) burst(); });
+})();
+</script>
 </body>
 </html>
