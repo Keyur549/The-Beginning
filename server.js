@@ -318,6 +318,12 @@ setInterval(() => {
 // drop event floods from one socket (a stuck/abusive client); normal play is a few events per second
 io.use((socket, next) => next());
 setInterval(() => { const cut = Date.now() - 48*3600*1000; for (const c of Object.keys(rooms)) if ((rooms[c].createdAt||Date.now()) < cut) delete rooms[c]; }, 3600*1000);
+
+// ---------- Zones: Host decides the Zone names, Player picks from a drop-down ----------
+const ZONES_DEF = ['શક્તિનાથ','ભોલાવ','મંગલદીપ','ઝાડેશ્વર','અંકલેશ્વર'];
+function cleanZones(a){ const seen=new Set(), out=[]; for(const v of (Array.isArray(a)?a:[])){ const s=String(v==null?'':v).replace(/\s+/g,' ').trim().slice(0,40); const k=s.toLowerCase(); if(s && !seen.has(k)){ seen.add(k); out.push(s); } if(out.length>=24) break; } return out.length?out:ZONES_DEF.slice(); }
+app.get('/api/zones/:code', (req,res)=>{ const r=rooms[String(req.params.code||'').trim().toUpperCase()]; if(!r) return res.json({ok:false, zones:ZONES_DEF}); res.json({ok:true, zones:cleanZones(r.zones)}); });
+
 io.on('connection', (socket) => {
   socket.on('time:sync', (x, cb) => { if(typeof cb==='function') cb(Date.now()); });
   let _n = 0, _t = Date.now();
@@ -457,7 +463,7 @@ io.on('connection', (socket) => {
     cb && cb({ok: id===HOST_ID && pw===HOST_PW});
   });
 
-  socket.on('host:create', ({hostName, maxPlayers, qaText, roundNames, boxPool, lastMult, theme}, cb) => {
+  socket.on('host:create', ({hostName, maxPlayers, qaText, roundNames, boxPool, lastMult, theme, zones}, cb) => {
     const code = randCode();
     const useDefault = !(qaText||'').trim();
     const parsed = parseRounds(useDefault ? defaultQuestionsText() : qaText);
@@ -466,13 +472,15 @@ io.on('connection', (socket) => {
       code, hostName, maxPlayers: maxPlayers||null, status:'lobby',
       questions: parsed.questions, usedIdx:[], curIdx:null, timerEnd:null,
       round:0, roundsDone:0, boxEnd:null, boxAuto:false,
-      players:{}, winners:null, revealStep:0, createdAt: Date.now(),
+      players:{}, winners:null, revealStep:0, createdAt: Date.now(), zones: cleanZones(zones),
       cfgOvr:{ theme: cleanTheme(theme)||cleanTheme(CFG.theme)||undefined, roundNames: cleanNames(roundNames), boxPool: cleanPool(boxPool)||CFG.boxPool.slice(), lastRoundMult: (+lastMult>=1&&+lastMult<=5)?Math.round(+lastMult):CFG.lastRoundMult }
     };
     socket.join(code);
     cb && cb({ok:true, code, parseInfo:{count:parsed.questions.length, usedDefault:useDefault}});
     broadcast(code);
   });
+
+  socket.on('host:setZones', ({code, zones}, cb) => { const r=rooms[code]; if(!r){ cb&&cb({ok:false}); return; } r.zones=cleanZones(zones); broadcast(code); cb&&cb({ok:true, zones:r.zones}); });
 
   socket.on('host:start', ({code}) => { const r=rooms[code]; if(!r) return; r.joinEnd=null; if(!r.botsPlay) for(const k of Object.keys(r.players)) if(r.players[k].bot) delete r.players[k]; r.status='active'; if(!r.startedAt) r.startedAt=Date.now(); startRoundIntro(r,code,0); });
 
