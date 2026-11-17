@@ -865,10 +865,11 @@ function render0(){
   if(r.status==='revealing') body+=`<div class="card numpop"><div class="lbl">🎯 Question Number</div><div class="num">${r.curIdx+1}</div></div>`;
   if(r.status==='question'){
     const remain=r.paused?Math.ceil((r.pausedMs||0)/1000):Math.max(0,Math.ceil((r.timerEnd-Date.now())/1000));
-    body+=`<div class="card"><div class="qtext">${esc(r.questions[r.curIdx].q)}</div>${r.questions[r.curIdx].img?`<img src="${esc(r.questions[r.curIdx].img)}" style="max-width:100%;max-height:260px;border-radius:12px;margin:8px auto;display:block" onerror="this.style.display='none'">`:''}${qaBtn(r.questions[r.curIdx])}<div class="timer">${remain}s${r.paused?' ⏸':''}</div>${r.paused?'<div class="qtext" style="text-align:center;background:#FFF3D6">⏸ Game થોભાવ્યું છે — થોડી રાહ જુઓ</div>':''}
+    body+=`<div class="card"><div class="qtext">${esc(r.questions[r.curIdx].q)}</div>${r.questions[r.curIdx].img?`<img class="qimgb" src="${esc(r.questions[r.curIdx].img)}" style="${__bl(r)}max-width:100%;max-height:260px;border-radius:12px;margin:8px auto;display:block" onerror="this.style.display='none'">`:''}${qaBtn(r.questions[r.curIdx])}<div class="timer">${remain}s${r.paused?' ⏸':''}</div>${r.paused?'<div class="qtext" style="text-align:center;background:#FFF3D6">⏸ Game થોભાવ્યું છે — થોડી રાહ જુઓ</div>':''}
     <button class="btn secondary" onclick='speakQuestion(${JSON.stringify(r.questions[r.curIdx].q)},true)'>🔊 સાંભળો</button>
     <button class="btn ghost" onclick="toggleAudio()">${audioOn?'🔊 Auto On':'🔇 Auto Off'}</button>
     <div class="muted">તમારા card માં જવાબ શોધીને click કરો.</div>
+    ${(p.boost&&p.boost[r.curIdx])?'<div class="boostbn">🚀 <b>Comeback Booster!</b> આ પ્રશ્ને સાચા જવાબના <b>2× Points</b> અને ખોટા જવાબની <b>સજા માફ</b>.</div>':''}
     ${Object.values(p.marks).includes(r.curIdx)?'<div class="qtext" style="text-align:center;margin-top:8px;background:rgba(22,163,74,.15)">✔ જવાબ નોંધાયો</div>':''}</div>`;
   }
   if(r.status==='box'){
@@ -1315,6 +1316,20 @@ function lineAlert(n){ try{ var o=document.getElementById('lntoast'); if(o) o.re
   render0=function(){ _r0.apply(this,arguments); try{ if(!state.code) mount(); }catch(e){} };
   try{ if(!state.code) mount(); }catch(e){}
 })();
+</script>
+<style id="up-boost">.boostbn{margin:10px auto 0;padding:10px 14px;border-radius:14px;text-align:center;font-weight:700;color:#fff;background:linear-gradient(90deg,#f97316,#dc2626);box-shadow:0 6px 18px rgba(249,115,22,.45);animation:bnp 1.2s ease-in-out infinite alternate}@keyframes bnp{from{transform:scale(1)}to{transform:scale(1.03)}}@media (prefers-reduced-motion:reduce){.boostbn{animation:none}}</style>
+<style id="up-blur">.pjalm{margin:10px auto 0;padding:.3em 1.2em;border-radius:99px;font-weight:900;font-size:clamp(1rem,3vh,2rem);color:#fff;background:linear-gradient(90deg,#dc2626,#f97316);box-shadow:0 0 26px rgba(249,115,22,.8);animation:pjalp 1s ease-in-out infinite alternate}.pjalm.l{background:linear-gradient(90deg,#0891b2,#6D28D9);box-shadow:0 0 26px rgba(109,40,217,.7);font-size:clamp(.9rem,2.5vh,1.6rem)}@keyframes pjalp{from{transform:scale(1)}to{transform:scale(1.05)}}@media (prefers-reduced-motion:reduce){.pjalm{animation:none}}.qimgb,.pjimg{transition:filter .25s linear}</style>
+<script id="up-blur-js">
+/* 🌫 Blur-to-Clear: photo starts blurred and gets sharp as the timer runs out.  🔥 Almost There helper */
+window.__bl=function(r){try{ if(!r||r.blurImg===false||r.status!=='question') return ''; var q=r.questions&&r.questions[r.curIdx]; if(!q||!q.img) return '';
+ var rem=r.paused?(r.pausedMs||0):Math.max(0,(r.timerEnd||0)-Date.now()), tot=(r.qSec||30)*1000, f=Math.max(0,Math.min(1,rem/tot)), px=Math.round(26*Math.pow(f,1.15)*10)/10;
+ return px>0.4?'filter:blur('+px+'px) saturate(.9);':'' }catch(e){ return '' }};
+window.almostHTML=function(r){try{ var a=r&&r.almost; if(!a) return ''; var o='';
+ if(a.full>0) o+='<div class="pjalm">🔥 '+a.full+' Players Full House થી ફક્ત 1 ખાનું દૂર!</div>';
+ if(a.line>0) o+='<div class="pjalm l">⚡ '+a.line+' Players પહેલી Line થી ફક્ત 1 ખાનું દૂર!</div>';
+ return o }catch(e){ return '' }};
+setInterval(function(){ try{ var r=(typeof state!=='undefined')&&state.room; if(!r) return; var st=window.__bl(r);
+ document.querySelectorAll('.qimgb,#pj .pjimg').forEach(function(i){ i.style.filter=st?st.replace('filter:','').replace(';',''):'none' }) }catch(e){} },250);
 </script>
 </body>
 </html>
