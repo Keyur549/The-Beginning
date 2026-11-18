@@ -153,6 +153,12 @@ function playerResults(room, pname){
   return { cellState, correctRows, correctCount, wrongCount, netScore, boxTotal, rounds, fullHouse };
 }
 // Round wise marks: a click is judged by the round of the question it was made for.
+function hintOf(a){
+  const s=String(a==null?'':a).trim(); let g;
+  try{ g=[...new Intl.Segmenter('gu',{granularity:'grapheme'}).segment(s)].map(x=>x.segment); }catch(e){ g=s.match(/[\u0A80-\u0AFF][\u0ABC\u0ABE-\u0ACD]*|[\s\S]/gu)||[]; }
+  g=g.filter(x=>x.trim()); const w=s.split(/\s+/).filter(Boolean).length;
+  return 'પહેલો અક્ષર: «'+(g[0]||'?')+'»'+(w>1?' · '+w+' શબ્દ':'');
+}
 function roundBreakdown(room, p){
   const P = CFG.perRound, n = CFG.rounds;
   const rd = Array.from({length:n}, ()=>({correct:0,wrong:0,box:0,bonus:0,score:0}));
@@ -161,6 +167,8 @@ function roundBreakdown(room, p){
     const _ok = !!(room.questions[qi] && room.questions[qi].a === p.card[+ci]); if (_ok) rd[ri].correct++; else rd[ri].wrong++;
     // 🚀 Comeback Booster question: a correct answer counts DOUBLE, a wrong answer costs nothing
     if (p.boost && p.boost[qi]) rd[ri].bonus += _ok ? CFG.correctPts : CFG.wrongPts;
+    // 🛡 Shield: the wrong-answer penalty of the question the player shielded is cancelled (Booster already refunds it, so never twice)
+    else if (!_ok && p.ll && p.ll.shield===qi) rd[ri].bonus += CFG.wrongPts;
   });
   rd.forEach((o,ri)=>{
     const pick = (p.boxPick||[])[ri];
@@ -472,6 +480,7 @@ io.on('connection', (socket) => {
     r.usedIdx = r.usedIdx.filter(i=>i!==idx);
     for (const p of Object.values(r.players)){
       for (const ci of Object.keys(p.marks)) if (p.marks[ci]===idx) delete p.marks[ci];
+      if (p.ll){ if(p.ll.shield===idx) p.ll.shield=null; if(p.ll.retry===idx) p.ll.retry=null; if(p.ll.hint&&p.ll.hint.qi===idx) p.ll.hint=null; }
     }
     r.status='active'; r.curIdx=null; r.timerEnd=null; r.paused=false; r.pausedMs=null;
     cb && cb({ok:true});
@@ -702,6 +711,26 @@ io.on('connection', (socket) => {
     p.marks[ci] = r.curIdx;
     touch(socket,code,name);
   });
+
+
+  // ---------- 🛡 Shield · 🔁 Second Try · 💡 Hint  (each player may use each ONCE per game) ----------
+  function llGet(code,name){ const r=rooms[code]; if(!r||r.status!=='question'||r.paused||r.llOff) return null; const p=r.players[name]; if(!p) return null; if(!p.ll) p.ll={shield:null,retry:null,hint:null}; return {r,p}; }
+  socket.on('player:shield', ({code,name}) => {
+    seen(code,name); const g=llGet(code,name); if(!g) return;
+    if (g.p.ll.shield!=null) return; g.p.ll.shield=g.r.curIdx; touch(socket,code,name);
+  });
+  socket.on('player:retry', ({code,name}) => {
+    seen(code,name); const g=llGet(code,name); if(!g) return;
+    if (g.p.ll.retry!=null) return;
+    const ci=Object.keys(g.p.marks).find(k=>g.p.marks[k]===g.r.curIdx); if(ci===undefined) return;
+    delete g.p.marks[ci]; g.p.ll.retry=g.r.curIdx; touch(socket,code,name);
+  });
+  socket.on('player:hint', ({code,name}) => {
+    seen(code,name); const g=llGet(code,name); if(!g) return;
+    if (g.p.ll.hint) return; const q=g.r.questions[g.r.curIdx]; if(!q) return;
+    g.p.ll.hint={qi:g.r.curIdx, t:hintOf(q.a)}; touch(socket,code,name);
+  });
+  socket.on('host:setLife', ({code,on}) => { const r=rooms[code]; if(!r) return; r.llOff=!on; broadcast(code); });
 
   socket.on('player:claim', ({code,name,type}) => {
     const r = rooms[code]; if(!r) return;

@@ -343,9 +343,12 @@ function playerResults(pname){
 }
 function roundBreakdown(r,p){
   const cfg=r.cfg||{}, n=cfg.rounds||7, per=cfg.perRound||5, cp=cfg.correctPts||2, wp=cfg.wrongPts||1;
-  const rd=Array.from({length:n},()=>({correct:0,wrong:0,box:0,score:0}));
-  Object.entries(p.marks).forEach(([ci,qi])=>{ const ri=Math.floor(qi/per); if(!rd[ri]) return; if(r.questions[qi]&&r.questions[qi].a===p.card[+ci]) rd[ri].correct++; else rd[ri].wrong++; });
-  rd.forEach((o,ri)=>{ const pick=(p.boxPick||[])[ri]; const v=(pick!=null&&p.boxVals&&p.boxVals[ri])?p.boxVals[ri][pick]:0; o.box=v*((ri===n-1)?(cfg.lastMult||1):1); o.score=o.correct*cp-o.wrong*wp+o.box; });
+  const rd=Array.from({length:n},()=>({correct:0,wrong:0,box:0,bonus:0,saved:0,score:0}));
+  Object.entries(p.marks).forEach(([ci,qi])=>{ const ri=Math.floor(qi/per); if(!rd[ri]) return; const ok=!!(r.questions[qi]&&r.questions[qi].a===p.card[+ci]); if(ok) rd[ri].correct++; else rd[ri].wrong++;
+    /* same rules as server.js: 🚀 Booster = correct counts double, wrong costs nothing; 🛡 Shield = the shielded wrong answer costs nothing (never refunded twice) */
+    if(p.boost&&p.boost[qi]) rd[ri].bonus+=ok?cp:wp;
+    else if(!ok&&p.ll&&p.ll.shield===qi){ rd[ri].bonus+=wp; rd[ri].saved+=wp; } });
+  rd.forEach((o,ri)=>{ const pick=(p.boxPick||[])[ri]; const v=(pick!=null&&p.boxVals&&p.boxVals[ri])?p.boxVals[ri][pick]:0; o.box=v*((ri===n-1)?(cfg.lastMult||1):1); o.score=o.correct*cp-o.wrong*wp+o.bonus+o.box; });
   return rd;
 }
 function roundTableHTML(res,cfg,cls){
@@ -859,7 +862,7 @@ function render0(){
   const r=state.room, p=r.players[state.name];
   if(!p){ el.innerHTML='<div class="card">Card તૈયાર થઈ રહ્યું છે… (થોડી સેકન્ડ, આપોઆપ ફરી જોડાઈ રહ્યા છીએ)</div>'; autoRejoin(); return; }
   let body=profileHdr(r,p)+zoneBattleHTML(r,p)+(typeof certBtn==='function'?certBtn(r):'');
-  if(r.status!=='lobby' && r.status!=='revealed'){ const nR=(r.cfg&&r.cfg.rounds)||7, dn=r.roundsDone||0; body+=`<div class="prog">✅ ${dn} Round પૂરા થયા · ⏳ ${nR-dn} બાકી</div>`+boxHist(p,r); }
+  if(r.status!=='lobby' && r.status!=='revealed'){ const nR=(r.cfg&&r.cfg.rounds)||7, dn=r.roundsDone||0; body+=`<div class="prog">✅ ${dn} Round પૂરા થયા · ⏳ ${nR-dn} બાકી</div>`+boxHist(p,r)+((r.status==='question'||r.status==='locked')?'':llStatusHTML(r,p)); }
   if(r.status==='lobby'||r.status==='active') body+=`<div class="card">Host ની રાહ જુઓ…<div style="margin-top:8px"><button class="btn ghost" onclick="pracOpen()">🧪 Practice કરો (5 નકલી પ્રશ્ન)</button></div></div>`;
   if(r.status==='spinning') body+=`<div class="card"><div class="qtext">🎡 Host Wheel Spin કરી રહ્યા છે...</div></div>`;
   if(r.status==='revealing') body+=`<div class="card numpop"><div class="lbl">🎯 Question Number</div><div class="num">${r.curIdx+1}</div></div>`;
@@ -869,6 +872,7 @@ function render0(){
     <button class="btn secondary" onclick='speakQuestion(${JSON.stringify(r.questions[r.curIdx].q)},true)'>🔊 સાંભળો</button>
     <button class="btn ghost" onclick="toggleAudio()">${audioOn?'🔊 Auto On':'🔇 Auto Off'}</button>
     <div class="muted">તમારા card માં જવાબ શોધીને click કરો.</div>
+    ${llRowHTML(r,p)}
     ${(p.boost&&p.boost[r.curIdx])?'<div class="boostbn">🚀 <b>Comeback Booster!</b> આ પ્રશ્ને સાચા જવાબના <b>2× Points</b> અને ખોટા જવાબની <b>સજા માફ</b>.</div>':''}
     ${Object.values(p.marks).includes(r.curIdx)?'<div class="qtext" style="text-align:center;margin-top:8px;background:rgba(22,163,74,.15)">✔ જવાબ નોંધાયો</div>':''}</div>`;
   }
@@ -1330,6 +1334,26 @@ window.almostHTML=function(r){try{ var a=r&&r.almost; if(!a) return ''; var o=''
  return o }catch(e){ return '' }};
 setInterval(function(){ try{ var r=(typeof state!=='undefined')&&state.room; if(!r) return; var st=window.__bl(r);
  document.querySelectorAll('.qimgb,#pj .pjimg').forEach(function(i){ i.style.filter=st?st.replace('filter:','').replace(';',''):'none' }) }catch(e){} },250);
+</script>
+<style id="up-ll">.llrow{display:flex;gap:8px;margin:12px 0 4px;flex-wrap:wrap}.llb{flex:1 1 30%;min-width:96px;padding:10px 6px;border-radius:14px;border:2px solid #6D28D9;background:#fff;color:#3b2a00;font-weight:800;font-size:.86rem;line-height:1.25;cursor:pointer}.llb small{display:block;font-weight:600;opacity:.75;font-size:.72rem}.llb.on{background:linear-gradient(90deg,#16a34a,#0d9488);color:#fff;border-color:#16a34a}.llb[disabled]{opacity:.45;cursor:default;border-style:dashed}.llbn{margin:8px 0 0;padding:10px 14px;border-radius:14px;text-align:center;font-weight:700;background:rgba(22,163,74,.14);border:1px solid #16a34a}.llhint{margin:8px 0 0;padding:10px 14px;border-radius:14px;text-align:center;font-weight:900;font-size:1.1rem;background:#FFF3D6;border:2px solid #f5b82e;color:#5a3b00}.llst{text-align:center;margin:6px 0;padding:6px 8px;border-radius:12px;background:rgba(109,40,217,.1);font-weight:700;font-size:.82rem}</style>
+<script id="up-ll-js">
+/* 🛡 Shield · 🔁 Second Try · 💡 Hint — one use each per game */
+function llState(p){ return p.ll||{shield:null,retry:null,hint:null}; }
+function llShield(){ var r=state.room; if(!r||r.status!=='question'||r.paused) return; socket.emit('player:shield',{code:state.code,name:state.name}); }
+function llHint(){ var r=state.room; if(!r||r.status!=='question'||r.paused) return; socket.emit('player:hint',{code:state.code,name:state.name}); }
+function llRetry(){ var r=state.room; if(!r||r.status!=='question'||r.paused) return; var p=r.players[state.name]; if(!p) return;
+  socket.emit('player:retry',{code:state.code,name:state.name});
+  try{ var L=llState(p); if(L.retry==null){ Object.keys(p.marks).forEach(function(k){ if(p.marks[k]===r.curIdx) delete p.marks[k]; }); p.ll=L; L.retry=r.curIdx; render(); } }catch(e){} }
+function llRowHTML(r,p){ if(r.llOff) return ''; var L=llState(p), q=r.curIdx, marked=Object.values(p.marks).indexOf(q)>=0;
+  var sOn=L.shield===q, sUsed=L.shield!=null&&!sOn, rUsed=L.retry!=null, hUsed=!!L.hint;
+  return '<div class="llrow">'+
+   '<button class="llb'+(sOn?' on':'')+'" '+((L.shield!=null)?'disabled ':'')+'onclick="llShield()">🛡 Shield<small>'+(sOn?'ચાલુ ✔':(sUsed?'વપરાયું':'ખોટો જવાબ માફ'))+'</small></button>'+
+   '<button class="llb" '+((rUsed||!marked)?'disabled ':'')+'onclick="llRetry()">🔁 Second Try<small>'+(rUsed?'વપરાયું':(marked?'જવાબ ફરી બદલો':'પહેલા જવાબ આપો'))+'</small></button>'+
+   '<button class="llb'+(hUsed?' on':'')+'" '+(hUsed?'disabled ':'')+'onclick="llHint()">💡 Hint<small>'+(hUsed?'વપરાયું':'પહેલો અક્ષર')+'</small></button></div>'+
+   (sOn?'<div class="llbn">🛡 <b>Shield ચાલુ!</b> આ પ્રશ્નનો ખોટો જવાબ હશે તો <b>સજા માફ</b>.</div>':'')+
+   ((L.hint&&L.hint.qi===q)?'<div class="llhint">💡 '+esc(L.hint.t)+'</div>':''); }
+function llStatusHTML(r,p){ if(r.llOff) return ''; var L=llState(p);
+  return '<div class="llst">🎒 Life Lines: 🛡 '+(L.shield!=null?'વપરાયું':'બાકી')+' · 🔁 '+(L.retry!=null?'વપરાયું':'બાકી')+' · 💡 '+(L.hint?'વપરાયું':'બાકી')+'</div>'; }
 </script>
 </body>
 </html>

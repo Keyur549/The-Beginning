@@ -1735,6 +1735,7 @@ function subscribe(){
 function hostSetTimer(s){ socket.emit('host:setTimer',{code:state.code,sec:s}); }
 function hostSkipTimer(){ socket.emit('host:skipTimer',{code:state.code}); }
 function boostToast(t){ try{ var d=document.createElement('div'); d.textContent=t; d.style.cssText='position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:99999;background:#111827;color:#fff;padding:12px 20px;border-radius:99px;font-weight:800;box-shadow:0 8px 28px rgba(0,0,0,.4)'; document.body.appendChild(d); setTimeout(function(){ d.remove() },3200) }catch(e){} }
+function hostLife(on){ socket.emit('host:setLife',{code:state.code,on:!!on}); }
 function hostBlur(on){ socket.emit('host:setBlur',{code:state.code,on:!!on}); }
 function boostPct(){ try{ var v=+localStorage.getItem('gsBoostPct'); return v>=5&&v<=50?v:25 }catch(e){ return 25 } }
 function boostPctSave(v){ v=Math.min(50,Math.max(5,Math.round(+v||25))); try{ localStorage.setItem('gsBoostPct',v) }catch(e){} }
@@ -2143,9 +2144,12 @@ function playerResults(r,pname){
 }
 function roundBreakdown(r,p){
   const cfg=r.cfg||{}, n=cfg.rounds||7, per=cfg.perRound||5, cp=cfg.correctPts||2, wp=cfg.wrongPts||1;
-  const rd=Array.from({length:n},()=>({correct:0,wrong:0,box:0,score:0}));
-  Object.entries(p.marks).forEach(([ci,qi])=>{ const ri=Math.floor(qi/per); if(!rd[ri]) return; if(r.questions[qi]&&r.questions[qi].a===p.card[+ci]) rd[ri].correct++; else rd[ri].wrong++; });
-  rd.forEach((o,ri)=>{ const pick=(p.boxPick||[])[ri]; const v=(pick!=null&&p.boxVals&&p.boxVals[ri])?p.boxVals[ri][pick]:0; o.box=v*((ri===n-1)?(cfg.lastMult||1):1); o.score=o.correct*cp-o.wrong*wp+o.box; });
+  const rd=Array.from({length:n},()=>({correct:0,wrong:0,box:0,bonus:0,saved:0,score:0}));
+  Object.entries(p.marks).forEach(([ci,qi])=>{ const ri=Math.floor(qi/per); if(!rd[ri]) return; const ok=!!(r.questions[qi]&&r.questions[qi].a===p.card[+ci]); if(ok) rd[ri].correct++; else rd[ri].wrong++;
+    /* same rules as server.js: 🚀 Booster = correct counts double, wrong costs nothing; 🛡 Shield = the shielded wrong answer costs nothing (never refunded twice) */
+    if(p.boost&&p.boost[qi]) rd[ri].bonus+=ok?cp:wp;
+    else if(!ok&&p.ll&&p.ll.shield===qi){ rd[ri].bonus+=wp; rd[ri].saved+=wp; } });
+  rd.forEach((o,ri)=>{ const pick=(p.boxPick||[])[ri]; const v=(pick!=null&&p.boxVals&&p.boxVals[ri])?p.boxVals[ri][pick]:0; o.box=v*((ri===n-1)?(cfg.lastMult||1):1); o.score=o.correct*cp-o.wrong*wp+o.bonus+o.box; });
   return rd;
 }
 function fmtDur(ms){ if(ms==null) return ''; const t=Math.round(ms/1000), m=Math.floor(t/60), sc=t%60; return (m?m+' મિનિટ ':'')+sc+' સેકન્ડ'; }
@@ -2265,7 +2269,7 @@ function render(){
     <button class="btn ghost" onclick="toggleAudio()">${audioOn?'🔊 Auto On':'🔇 Auto Off'}</button>
     ${r.paused?'<button class="btn" onclick="hostResume()">▶ Resume (ચાલુ કરો)</button>':'<button class="btn secondary" onclick="hostPause()">⏸ Pause (થોભાવો)</button>'}
     <button class="btn" style="background:#6D28D9;color:#3b2a00" onclick="hostSkipTimer()">⏭ Time Skip (હમણાં બંધ કરો)</button>
-    <span style="display:inline-flex;gap:6px;align-items:center;flex-wrap:wrap"><button class="btn" style="background:${r.boostQ===r.curIdx?'#16a34a':'#f97316'};color:#fff" onclick="hostBoost()">🚀 Comeback Booster${r.boostQ===r.curIdx?' ચાલુ ('+(r.boostN||0)+' Players) — બંધ કરો':''}</button><label class="muted" style="font-weight:700"><input type="checkbox" ${r.blurImg!==false?'checked':''} onchange="hostBlur(this.checked)"> 🌫 Blur-to-Clear</label><label class="muted" style="font-weight:700">નીચેના <input id="bstPct" type="number" min="5" max="50" value="${boostPct()}" onchange="boostPctSave(this.value)" style="width:58px;padding:6px;border-radius:8px;border:1px solid #cbd5e1;font-weight:800"> %</label></span>
+    <span style="display:inline-flex;gap:6px;align-items:center;flex-wrap:wrap"><button class="btn" style="background:${r.boostQ===r.curIdx?'#16a34a':'#f97316'};color:#fff" onclick="hostBoost()">🚀 Comeback Booster${r.boostQ===r.curIdx?' ચાલુ ('+(r.boostN||0)+' Players) — બંધ કરો':''}</button><label class="muted" style="font-weight:700"><input type="checkbox" ${r.blurImg!==false?'checked':''} onchange="hostBlur(this.checked)"> 🌫 Blur-to-Clear</label><label class="muted" style="font-weight:700"><input type="checkbox" ${r.llOff?'':'checked'} onchange="hostLife(this.checked)"> 🛡 Life Lines (Shield · Second Try · Hint)</label><label class="muted" style="font-weight:700">નીચેના <input id="bstPct" type="number" min="5" max="50" value="${boostPct()}" onchange="boostPctSave(this.value)" style="width:58px;padding:6px;border-radius:8px;border:1px solid #cbd5e1;font-weight:800"> %</label></span>
     <button class="btn ghost" onclick="hostUndo()">↩️ આ Question Undo</button>
     <button class="btn ghost" onclick="hostEnd()">End Game</button></div>`;
   } else if(r.status==='box'){
