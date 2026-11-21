@@ -167,8 +167,6 @@ function roundBreakdown(room, p){
     const _ok = !!(room.questions[qi] && room.questions[qi].a === p.card[+ci]); if (_ok) rd[ri].correct++; else rd[ri].wrong++;
     // 🚀 Comeback Booster question: a correct answer counts DOUBLE, a wrong answer costs nothing
     if (p.boost && p.boost[qi]) rd[ri].bonus += _ok ? CFG.correctPts : CFG.wrongPts;
-    // 🛡 Shield: the wrong-answer penalty of the question the player shielded is cancelled (Booster already refunds it, so never twice)
-    else if (!_ok && p.ll && p.ll.shield===qi) rd[ri].bonus += CFG.wrongPts;
   });
   rd.forEach((o,ri)=>{
     const pick = (p.boxPick||[])[ri];
@@ -480,7 +478,7 @@ io.on('connection', (socket) => {
     r.usedIdx = r.usedIdx.filter(i=>i!==idx);
     for (const p of Object.values(r.players)){
       for (const ci of Object.keys(p.marks)) if (p.marks[ci]===idx) delete p.marks[ci];
-      if (p.ll){ if(p.ll.shield===idx) p.ll.shield=null; if(p.ll.retry===idx) p.ll.retry=null; if(p.ll.hint&&p.ll.hint.qi===idx) p.ll.hint=null; }
+      if (p.ll){ if(p.ll.row&&p.ll.row.qi===idx) p.ll.row=null; if(p.ll.radar&&p.ll.radar.qi===idx) p.ll.radar=null; if(p.ll.retry===idx) p.ll.retry=null; if(p.ll.hint&&p.ll.hint.qi===idx) p.ll.hint=null; }
     }
     r.status='active'; r.curIdx=null; r.timerEnd=null; r.paused=false; r.pausedMs=null;
     cb && cb({ok:true});
@@ -713,11 +711,24 @@ io.on('connection', (socket) => {
   });
 
 
-  // ---------- 🛡 Shield · 🔁 Second Try · 💡 Hint  (each player may use each ONCE per game) ----------
-  function llGet(code,name){ const r=rooms[code]; if(!r||r.status!=='question'||r.paused||r.llOff) return null; const p=r.players[name]; if(!p) return null; if(!p.ll) p.ll={shield:null,retry:null,hint:null}; return {r,p}; }
-  socket.on('player:shield', ({code,name}) => {
+  // ---------- 🔁 Second Try · 💡 Hint · 📍 Row Pointer · 📡 Radar  (each player may use each ONCE per game) ----------
+  function llGet(code,name){ const r=rooms[code]; if(!r||r.status!=='question'||r.paused||r.llOff) return null; const p=r.players[name]; if(!p) return null; if(!p.ll) p.ll={retry:null,hint:null,row:null,radar:null}; return {r,p}; }
+  // 📡 Radar: highlights 3 cells of the player's own card; the answer of the current question is one of them (the other 2 are random still-empty cells). Only the player himself receives it.
+  socket.on('player:radar', ({code,name}) => {
     seen(code,name); const g=llGet(code,name); if(!g) return;
-    if (g.p.ll.shield!=null) return; g.p.ll.shield=g.r.curIdx; touch(socket,code,name);
+    if (g.p.ll.radar) return; const q=g.r.questions[g.r.curIdx]; if(!q) return;
+    const ci=g.p.card.indexOf(q.a);
+    if (ci<0){ g.p.ll.radar={qi:g.r.curIdx, cells:[], t:'આ પ્રશ્નનો જવાબ તમારા Card માં નથી'}; touch(socket,code,name); return; }
+    const pool=[]; for(let i=0;i<25;i++) if(i!==ci && g.p.marks[i]===undefined) pool.push(i);
+    for(let i=pool.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [pool[i],pool[j]]=[pool[j],pool[i]]; }
+    g.p.ll.radar={qi:g.r.curIdx, cells:[ci,...pool.slice(0,2)].sort((a,b)=>a-b), t:'📡 આ 3 ખાનામાંથી એકમાં જવાબ છે'}; touch(socket,code,name);
+  });
+  // 📍 Row Pointer: tells in which ROW (1-5) of the player's own card the answer of the current question is (or that it is not on the card). Only the player himself receives it.
+  socket.on('player:row', ({code,name}) => {
+    seen(code,name); const g=llGet(code,name); if(!g) return;
+    if (g.p.ll.row) return; const q=g.r.questions[g.r.curIdx]; if(!q) return;
+    const ci=g.p.card.indexOf(q.a);
+    g.p.ll.row={qi:g.r.curIdx, t: ci<0 ? 'આ પ્રશ્નનો જવાબ તમારા Card માં નથી' : 'જવાબ Row '+(Math.floor(ci/5)+1)+' માં છે'}; touch(socket,code,name);
   });
   socket.on('player:retry', ({code,name}) => {
     seen(code,name); const g=llGet(code,name); if(!g) return;

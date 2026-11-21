@@ -2146,9 +2146,9 @@ function roundBreakdown(r,p){
   const cfg=r.cfg||{}, n=cfg.rounds||7, per=cfg.perRound||5, cp=cfg.correctPts||2, wp=cfg.wrongPts||1;
   const rd=Array.from({length:n},()=>({correct:0,wrong:0,box:0,bonus:0,saved:0,score:0}));
   Object.entries(p.marks).forEach(([ci,qi])=>{ const ri=Math.floor(qi/per); if(!rd[ri]) return; const ok=!!(r.questions[qi]&&r.questions[qi].a===p.card[+ci]); if(ok) rd[ri].correct++; else rd[ri].wrong++;
-    /* same rules as server.js: 🚀 Booster = correct counts double, wrong costs nothing; 🛡 Shield = the shielded wrong answer costs nothing (never refunded twice) */
+    /* same rules as server.js: 🚀 Booster = correct counts double, wrong costs nothing; */
     if(p.boost&&p.boost[qi]) rd[ri].bonus+=ok?cp:wp;
-    else if(!ok&&p.ll&&p.ll.shield===qi){ rd[ri].bonus+=wp; rd[ri].saved+=wp; } });
+  });
   rd.forEach((o,ri)=>{ const pick=(p.boxPick||[])[ri]; const v=(pick!=null&&p.boxVals&&p.boxVals[ri])?p.boxVals[ri][pick]:0; o.box=v*((ri===n-1)?(cfg.lastMult||1):1); o.score=o.correct*cp-o.wrong*wp+o.bonus+o.box; });
   return rd;
 }
