@@ -1341,12 +1341,12 @@ setInterval(function(){ try{ var r=(typeof state!=='undefined')&&state.room; if(
 <script id="up-ll-js">
 /* 🔁 Second Try · 💡 Hint · 📍 Row Pointer · 📡 Radar — one use each per game */
 function llState(p){ return p.ll||{retry:null,hint:null,row:null,radar:null}; }
-function llRadar(){ var r=state.room; if(!r||r.status!=='question'||r.paused) return; socket.emit('player:radar',{code:state.code,name:state.name}); }
-function llRow(){ var r=state.room; if(!r||r.status!=='question'||r.paused) return; socket.emit('player:row',{code:state.code,name:state.name}); }
-function llHint(){ var r=state.room; if(!r||r.status!=='question'||r.paused) return; socket.emit('player:hint',{code:state.code,name:state.name}); }
-function llRetry(){ var r=state.room; if(!r||r.status!=='question'||r.paused) return; var p=r.players[state.name]; if(!p) return;
-  socket.emit('player:retry',{code:state.code,name:state.name});
-  try{ var L=llState(p); if(L.retry==null){ Object.keys(p.marks).forEach(function(k){ if(p.marks[k]===r.curIdx) delete p.marks[k]; }); p.ll=L; L.retry=r.curIdx; render(); } }catch(e){} }
+function llNote(m){ try{ var o=document.getElementById('llnote'); if(o) o.remove(); var d=document.createElement('div'); d.id='llnote'; d.textContent=m; d.style.cssText='position:fixed;left:50%;top:calc(14px + env(safe-area-inset-top,0px));transform:translateX(-50%);z-index:2147483100;background:#1f2937;color:#fff;padding:10px 14px;border-radius:12px;font-weight:700;font-size:.85rem;max-width:90%;text-align:center;box-shadow:0 6px 20px rgba(0,0,0,.3)'; document.body.appendChild(d); setTimeout(function(){ try{d.remove();}catch(e){} },3800); }catch(e){} }
+function llGo(ev){ var r=state.room; if(!r||r.status!=='question'||r.paused) return; socket.emit(ev,{code:state.code,name:state.name},function(res){ if(res&&res.ok===false&&res.msg) llNote(res.msg); }); }
+function llRadar(){ llGo('player:radar'); }
+function llRow(){ llGo('player:row'); }
+function llHint(){ llGo('player:hint'); }
+function llRetry(){ llGo('player:retry'); }
 function llRowHTML(r,p){ if(r.llOff) return ''; var L=llState(p), q=r.curIdx, marked=Object.values(p.marks).indexOf(q)>=0;
   var rUsed=L.retry!=null, hUsed=!!L.hint, pUsed=!!L.row, dUsed=!!L.radar;
   return '<div class="llrow">'+

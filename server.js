@@ -714,32 +714,36 @@ io.on('connection', (socket) => {
   // ---------- 🔁 Second Try · 💡 Hint · 📍 Row Pointer · 📡 Radar  (each player may use each ONCE per game) ----------
   function llGet(code,name){ const r=rooms[code]; if(!r||r.status!=='question'||r.paused||r.llOff) return null; const p=r.players[name]; if(!p) return null; if(!p.ll) p.ll={retry:null,hint:null,row:null,radar:null}; return {r,p}; }
   // 📡 Radar: highlights 3 cells of the player's own card; the answer of the current question is one of them (the other 2 are random still-empty cells). Only the player himself receives it.
-  socket.on('player:radar', ({code,name}) => {
+  socket.on('player:radar', ({code,name}, cb) => {
     seen(code,name); const g=llGet(code,name); if(!g) return;
     if (g.p.ll.radar) return; const q=g.r.questions[g.r.curIdx]; if(!q) return;
     const ci=g.p.card.indexOf(q.a);
-    if (ci<0){ g.p.ll.radar={qi:g.r.curIdx, cells:[], t:'આ પ્રશ્નનો જવાબ તમારા Card માં નથી'}; touch(socket,code,name); return; }
+    if (ci<0) return cb&&cb({ok:false,msg:'આ પ્રશ્નનો જવાબ તમારા Card માં નથી — Life Line વપરાઈ નથી.'});   // answer not on this card: the Life Line is NOT used up
     const pool=[]; for(let i=0;i<25;i++) if(i!==ci && g.p.marks[i]===undefined) pool.push(i);
     for(let i=pool.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [pool[i],pool[j]]=[pool[j],pool[i]]; }
-    g.p.ll.radar={qi:g.r.curIdx, cells:[ci,...pool.slice(0,2)].sort((a,b)=>a-b), t:'📡 આ 3 ખાનામાંથી એકમાં જવાબ છે'}; touch(socket,code,name);
+    g.p.ll.radar={qi:g.r.curIdx, cells:[ci,...pool.slice(0,2)].sort((a,b)=>a-b), t:'📡 આ 3 ખાનામાંથી એકમાં જવાબ છે'}; touch(socket,code,name); cb&&cb({ok:true});
   });
   // 📍 Row Pointer: tells in which ROW (1-5) of the player's own card the answer of the current question is (or that it is not on the card). Only the player himself receives it.
-  socket.on('player:row', ({code,name}) => {
+  socket.on('player:row', ({code,name}, cb) => {
     seen(code,name); const g=llGet(code,name); if(!g) return;
     if (g.p.ll.row) return; const q=g.r.questions[g.r.curIdx]; if(!q) return;
     const ci=g.p.card.indexOf(q.a);
-    g.p.ll.row={qi:g.r.curIdx, t: ci<0 ? 'આ પ્રશ્નનો જવાબ તમારા Card માં નથી' : 'જવાબ Row '+(Math.floor(ci/5)+1)+' માં છે'}; touch(socket,code,name);
+    if (ci<0) return cb&&cb({ok:false,msg:'આ પ્રશ્નનો જવાબ તમારા Card માં નથી — Life Line વપરાઈ નથી.'});   // answer not on this card: the Life Line is NOT used up
+    g.p.ll.row={qi:g.r.curIdx, t:'જવાબ Row '+(Math.floor(ci/5)+1)+' માં છે'}; touch(socket,code,name); cb&&cb({ok:true});
   });
-  socket.on('player:retry', ({code,name}) => {
+  socket.on('player:retry', ({code,name}, cb) => {
     seen(code,name); const g=llGet(code,name); if(!g) return;
     if (g.p.ll.retry!=null) return;
+    const q=g.r.questions[g.r.curIdx]; if(!q) return;
+    if (!g.p.card.includes(q.a)) return cb&&cb({ok:false,msg:'આ પ્રશ્નનો જવાબ તમારા Card માં નથી — Life Line વપરાઈ નથી.'});   // answer not on this card: the Life Line is NOT used up
     const ci=Object.keys(g.p.marks).find(k=>g.p.marks[k]===g.r.curIdx); if(ci===undefined) return;
-    delete g.p.marks[ci]; g.p.ll.retry=g.r.curIdx; touch(socket,code,name);
+    delete g.p.marks[ci]; g.p.ll.retry=g.r.curIdx; touch(socket,code,name); cb&&cb({ok:true});
   });
-  socket.on('player:hint', ({code,name}) => {
+  socket.on('player:hint', ({code,name}, cb) => {
     seen(code,name); const g=llGet(code,name); if(!g) return;
     if (g.p.ll.hint) return; const q=g.r.questions[g.r.curIdx]; if(!q) return;
-    g.p.ll.hint={qi:g.r.curIdx, t:hintOf(q.a)}; touch(socket,code,name);
+    if (!g.p.card.includes(q.a)) return cb&&cb({ok:false,msg:'આ પ્રશ્નનો જવાબ તમારા Card માં નથી — Life Line વપરાઈ નથી.'});   // answer not on this card: the Life Line is NOT used up
+    g.p.ll.hint={qi:g.r.curIdx, t:hintOf(q.a)}; touch(socket,code,name); cb&&cb({ok:true});
   });
   socket.on('host:setLife', ({code,on}) => { const r=rooms[code]; if(!r) return; r.llOff=!on; broadcast(code); });
 
