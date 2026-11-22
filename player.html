@@ -262,7 +262,7 @@ function uiJoinRoom(){
   const keepForm=()=>{ render(); document.getElementById('joinName').value=name; document.getElementById('joinZone').value=zone; document.getElementById('joinAvatar').value=avatar; document.getElementById('joinCode').value=code; try{zoneSync(zone)}catch(e){} };
   const code=document.getElementById('joinCode').value.trim().toUpperCase();
   if(!name){ state.joinErr='તમારું નામ નાખો.'; keepForm(); return; }
-  if(!zone){ state.joinErr='Zone પસંદ કરો (અથવા "અન્ય Zone" માં નામ લખો).'; keepForm(); return; }
+  if(!zone){ state.joinErr='યાદીમાંથી તમારો Zone પસંદ કરો.'; keepForm(); return; }
   state.profile={name,avatar,zone};
   try{ window.showLogoSplash&&showLogoSplash(name); }catch(e){}
   socket.emit('player:join',{code,name,zone,avatar,clientId:getClientId(),token:(function(){const q=sess(); return q&&q.code===code&&String(q.name||'').trim().toLowerCase()===name.toLowerCase()&&String(q.zone||'').trim().toLowerCase()===zone.toLowerCase()?q.token:undefined;})()},(res)=>{
@@ -795,6 +795,7 @@ socket.on('state', r=>{ if(!state.code||r.code!==state.code) return;
 setInterval(()=>{ const r=state.room; if(!r||r.status!=='question'||r.paused||!r.timerEnd) return; const rem=Math.ceil((r.timerEnd-Date.now())/1000); if(rem>0&&rem<=5&&_sfx.tk!==rem+'|'+r.curIdx){ _sfx.tk=rem+'|'+r.curIdx; SFX.tick(); } },250);
 /* ===== Zone vs Zone live battle ===== */
 function zoneBattleHTML(r,p){
+  return '';   // Zone vs Zone battle is not shown on the player screen
   const zp=r.zoneProg; if(!zp||!zp.length||!(r.status==='question'||r.status==='locked')) return '';
   const me=String((p&&p.zone)||(state.profile&&state.profile.zone)||'').trim().toLowerCase();
   const rows=zp.slice().sort((a,b)=>((b.a/b.n)-(a.a/a.n))||(b.a-a.a)); const show=rows.slice(0,6);
@@ -897,7 +898,7 @@ function render0(){
     const _ln=markedLines(state.name);
     const _need=[['line1',1],['line2',2],['line3',3],['line4',4],['line5',5],['full',5]];
     const _open=_need.filter(([k,n])=>{ const c=p.claims&&p.claims[k]; const en=k==='full'?_ln>=5:_ln>=n; const more=c&&Object.keys(p.marks).length>c.marks; return en&&(!c||more); });
-    try{ if(typeof window.__lastLn==='number' && _ln>window.__lastLn) lineAlert(_ln); window.__lastLn=_ln; }catch(e){}
+    try{ window.__lastLn=_ln; }catch(e){}
     if(_ln>=1) LNB=`<div class="card lnban"><div style="font-size:1.15rem;font-weight:800">🎉 તમારી <b>${_ln} Line</b> બની ગઈ છે!</div>${_open.length?`<button class="btn" style="margin-top:8px" onclick="var e=document.getElementById('clm');e&&e.scrollIntoView({behavior:'smooth',block:'center'})">👇 હવે Claim કરો</button>`:`<div class="muted" style="margin-top:4px">✔ Claim થઈ ગયું</div>`}<div class="muted" style="margin-top:4px">તમારી Line સાચી છે કે ખોટી એ છેલ્લે Result માં ખબર પડશે.</div></div>`;
   }
   body+=LNB;
@@ -1302,19 +1303,17 @@ function lineAlert(n){ try{ var o=document.getElementById('lntoast'); if(o) o.re
   var DEF=['શક્તિનાથ','ભોલાવ','મંગલદીપ','ઝાડેશ્વર','અંકલેશ્વર'], Z=DEF.slice(), OTHER='__other__', tm=null, last='';
   function esc(t){return String(t==null?'':t).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;')}
   function canon(v){ v=String(v||'').trim().toLowerCase(); for(var i=0;i<Z.length;i++) if(Z[i].toLowerCase()===v) return Z[i]; return null; }
-  function fill(sel){ sel.innerHTML='<option value="">📍 તમારો Zone પસંદ કરો</option>'+Z.map(function(z){return '<option value="'+esc(z)+'">'+esc(z)+'</option>'}).join('')+'<option value="'+OTHER+'">➕ અન્ય Zone (જાતે લખો)</option>'; }
+  function fill(sel){ sel.innerHTML='<option value="">📍 તમારો Zone પસંદ કરો</option>'+Z.map(function(z){return '<option value="'+esc(z)+'">'+esc(z)+'</option>'}).join(''); }
   window.zoneSync=function(v){ var sel=document.getElementById('joinZoneSel'), inp=document.getElementById('joinZone'); if(!sel||!inp) return; fill(sel); v=String(v==null?inp.value:v).trim();
     var c=canon(v);
     if(c){ sel.value=c; inp.value=c; inp.style.display='none'; }
-    else if(v){ sel.value=OTHER; inp.value=v; inp.style.display=''; }
     else { sel.value=''; inp.value=''; inp.style.display='none'; } };
   function fetchZ(){ var c=document.getElementById('joinCode'); if(!c) return; var code=c.value.trim().toUpperCase(); if(code.length<4||code===last) return; last=code;
     try{ fetch('/api/zones/'+encodeURIComponent(code)).then(function(r){return r.json()}).then(function(j){ if(j&&j.ok&&Array.isArray(j.zones)&&j.zones.length){ Z=j.zones; var inp=document.getElementById('joinZone'); window.zoneSync(inp?inp.value:''); } }).catch(function(){}); }catch(e){} }
   function mount(){ var inp=document.getElementById('joinZone'); if(!inp||document.getElementById('joinZoneSel')) return;
     var sel=document.createElement('select'); sel.id='joinZoneSel'; inp.parentNode.insertBefore(sel,inp);
     var code=document.getElementById('joinCode'); if(code){ sel.parentNode.insertBefore(code,sel); code.addEventListener('input',function(){ clearTimeout(tm); tm=setTimeout(function(){ last=''; fetchZ(); },300); }); }
-    inp.placeholder='તમારા Zone નું નામ લખો';
-    sel.onchange=function(){ if(sel.value===OTHER){ inp.value=''; inp.style.display=''; try{inp.focus()}catch(e){} } else if(sel.value){ inp.value=sel.value; inp.style.display='none'; } else { inp.value=''; inp.style.display='none'; } };
+    sel.onchange=function(){ if(sel.value){ inp.value=sel.value; inp.style.display='none'; } else { inp.value=''; inp.style.display='none'; } };
     var pz=''; try{ pz=(state.profile&&state.profile.zone)||''; }catch(e){}
     window.zoneSync(inp.value||pz); last=''; fetchZ(); }
   var _r0=render0;

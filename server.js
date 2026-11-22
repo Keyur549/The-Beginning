@@ -653,6 +653,8 @@ io.on('connection', (socket) => {
     const r = rooms[code]; if(!r){ cb&&cb({ok:false,error:'Room code મળ્યો નહિ.'}); return; }
     name=(name||'').trim(); zone=(zone||'').trim();
     if(!name){ cb&&cb({ok:false,error:'નામ લખો.'}); return; }
+    // zone must be one of the host's zones (players cannot invent their own); a returning player with a valid token is exempt
+    if(!tokOwner(r, token)){ const zl=cleanZones(r.zones), zm=zl.find(z=>z.toLowerCase()===zone.toLowerCase()); if(!zm){ cb&&cb({ok:false,error:'Host એ આપેલા Zone માંથી જ તમારો Zone પસંદ કરો.'}); return; } zone=zm; }
     if(!r.clientMap) r.clientMap = {};
     const norm = x => (x||'').trim().toLowerCase();
     // 0) the player's own secret token => always his own card (refresh / network drop / reopen)
